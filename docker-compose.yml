@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:5.7
+    container_name: attendance_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: attendance_app
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 5s
+      retries: 10
+
+  php:
+    image: php:8-cli
+    container_name: attendance_php
+    working_dir: /app
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: development
+      APP_DEBUG: "1"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_DATABASE: attendance_app
+      DB_USERNAME: root
+      DB_PASSWORD: root
+      EVENT_HMAC_KEY: test-event-hmac-key-for-local-dev
+      CSRF_KEY: test-csrf-key-for-local-dev
+      SESSION_SECURE: "0"
+    command: php -S 0.0.0.0:8000 -t public/
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

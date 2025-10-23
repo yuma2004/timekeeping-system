@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Repositories;
 
+use App\Support\Config;
+use DateTimeImmutable;
 use DateTimeInterface;
+use DateTimeZone;
+use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 
@@ -81,9 +85,26 @@ final class AttendanceRepository
 
     public function findEventsForMonth(int $userId, string $yearMonth): array
     {
-        $start = new \DateTimeImmutable("{$yearMonth}-01 00:00:00", new \DateTimeZone('UTC'));
-        $end = $start->modify('first day of next month')->modify('-1 second');
+        if (!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', $yearMonth)) {
+            throw new InvalidArgumentException(
+                sprintf('Invalid yearMonth value "%s". Expected format is YYYY-MM.', $yearMonth)
+            );
+        }
 
-        return $this->findEventsBetween($userId, $start, $end);
+        $localZone = new DateTimeZone(Config::get('app.timezone', 'Asia/Tokyo'));
+        $startLocal = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $yearMonth . '-01 00:00:00', $localZone);
+        if ($startLocal === false) {
+            throw new InvalidArgumentException(
+                sprintf('Failed to build start date for "%s" in timezone "%s".', $yearMonth, $localZone->getName())
+            );
+        }
+
+        $endLocal = $startLocal->modify('first day of next month');
+
+        $utcZone = new DateTimeZone('UTC');
+        $startUtc = $startLocal->setTimezone($utcZone);
+        $endUtc = $endLocal->setTimezone($utcZone)->modify('-1 second');
+
+        return $this->findEventsBetween($userId, $startUtc, $endUtc);
     }
 }
